@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宝宝快乐打字 (通关版)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f8ff;
+            font-family: "Comic Sans MS", "YouYuan", cursive, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            transition: opacity 0.3s;
+        }
+
+        #display-char {
+            font-size: 25vw;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-shadow: 5px 5px 0px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            cursor: default;
+            line-height: 1;
+        }
+
+        .bounce {
+            animation: bounce-anim 0.5s;
+        }
+
+        @keyframes bounce-anim {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        #hint {
+            font-size: 2rem;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        /* 顶部进度条 */
+        #progress-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: #eee;
+        }
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
+            transition: width 0.3s;
+        }
+
+        /* 启动 & 胜利 遮罩层 */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s;
+        }
+
+        .btn {
+            padding: 15px 50px;
+            font-size: 2.5rem;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            box-shadow: 0 8px 0 #e05656;
+            cursor: pointer;
+            margin-top: 20px;
+            font-family: inherit;
+        }
+        
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #e05656;
+        }
+
+        .modal-title {
+            font-size: 4rem;
+            color: #ff9f43;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 0 #fff;
+        }
+
+        .modal-subtitle {
+            font-size: 1.5rem;
+            color: #666;
+        }
+
+        /* 隐藏类 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* 粒子效果 */
+        .emoji-particle {
+            position: absolute;
+            font-size: 3rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 10;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-150px) scale(1.5); opacity: 0; }
+        }
+
+        /* 胜利时的彩带 */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            animation: fall linear forwards;
+            z-index: 50;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+
+        #score-board {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2rem;
+            color: #ff9f43;
+            font-weight: bold;
+        }
+        
+        #target-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="progress-container"><div id="progress-bar"></div></div>
+
+    <div id="start-overlay" class="overlay">
+        <div class="modal-title">宝宝打字 👶</div>
+        <div class="modal-subtitle">集齐 10 颗星星就胜利啦！</div>
+        <button id="start-btn" class="btn">▶ 点击开始</button>
+    </div>
+
+    <div id="victory-overlay" class="overlay hidden">
+        <div style="font-size: 6rem;">🏆</div>
+        <div class="modal-title">太棒了！</div>
+        <div class="modal-subtitle">你完成了所有挑战</div>
+        <button id="replay-btn" class="btn">🔄 再玩一次</button>
+    </div>
+
+    <div id="score-board">⭐ <span id="score">0</span></div>
+    <div id="target-info">目标: 10</div>
+
+    <div id="game-container">
+        <div id="display-char">?</div>
+        <div id="hint">按键盘上的按键</div>
+    </div>
+
+    <script>
+        const displayChar = document.getElementById('display-char');
+        const scoreEl = document.getElementById('score');
+        const startOverlay = document.getElementById('start-overlay');
+        const victoryOverlay = document.getElementById('victory-overlay');
+        const gameContainer = document.getElementById('game-container');
+        const progressBar = document.getElementById('progress-bar');
+        
+        let currentChar = '';
+        let score = 0;
+        const TARGET_SCORE = 10; // 设置目标分数为10分
+        let isGameActive = false;
+        
+        const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#ff9f43', '#a55eea', '#fd9644', '#20bf6b'];
+        const emojis = ['🎈', '🌟', '🦄', '🍭', '🍦', '🐶', '🐱', '🎉', '💖'];
+
+        // --- 音频系统 ---
+        let audioCtx;
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) audioCtx = new AudioContext();
+        }
+
+        function playTone(freq, duration = 0.5, type = 'sine') {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playVictoryMusic() {
+            // 播放一段胜利号角: C - E - G - High C
+            const now = audioCtx.currentTime;
+            const playNote = (f, t) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.value = f;
+                osc.type = 'triangle'; // 用三角波，听起来更像号角
+                gain.gain.setValueAtTime(0.2, now + t);
+                gain.gain.linearRampToValueAtTime(0, now + t + 0.4);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + t);
+                osc.stop(now + t + 0.4);
+            };
+            
+            playNote(523.25, 0);   // Do
+            playNote(659.25, 0.2); // Mi
+            playNote(783.99, 0.4); // So
+            
+            // 最后一声长音 High Do
+            setTimeout(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.frequency.value = 1046.50;
+                osc.type = 'square'; // 方波更响亮
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 1.5);
+            }, 600);
+        }
+
+        // --- TTS 语音 ---
+        const synth = window.speechSynthesis;
+        let voices = [];
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => voices = synth.getVoices();
+        }
+
+        function speak(text) {
+            synth.cancel();
+            const utterThis = new SpeechSynthesisUtterance(text);
+            const zhVoice = voices.find(v => v.lang.includes('zh'));
+            if (zhVoice) utterThis.voice = zhVoice;
+            utterThis.pitch = 1.2;
+            utterThis.rate = 0.8;
+            synth.speak(utterThis);
+        }
+
+        // --- 游戏逻辑 ---
+
+        function updateProgress() {
+            const percent = (score / TARGET_SCORE) * 100;
+            progressBar.style.width = percent + '%';
+        }
+
+        function generateChar() {
+            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            const randomChar = chars.charAt(Math.floor(Math.random() * chars.length));
+            currentChar = randomChar;
+            displayChar.textContent = randomChar;
+            displayChar.style.color = colors[Math.floor(Math.random() * colors.length)];
+            
+            displayChar.classList.remove('bounce');
+            void displayChar.offsetWidth; 
+            displayChar.classList.add('bounce');
+
+            speak(randomChar);
+        }
+
+        function createParticles() {
+            const rect = displayChar.getBoundingClientRect();
+            const particle = document.createElement('div');
+            particle.classList.add('emoji-particle');
+            particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            const randomX = (Math.random() - 0.5) * 150;
+            particle.style.left = (rect.left + rect.width / 2 + randomX - 20) + 'px';
+            particle.style.top = (rect.top + 50) + 'px';
+            document.body.appendChild(particle);
+            setTimeout(() => particle.remove(), 1000);
+        }
+
+        function startConfetti() {
+            for(let i=0; i<50; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                confetti.style.opacity = Math.random();
+                document.body.appendChild(confetti);
+                
+                setTimeout(() => confetti.remove(), 4000);
+            }
+        }
+
+        function winGame() {
+            isGameActive = false;
+            playVictoryMusic();
+            startConfetti();
+            victoryOverlay.classList.remove('hidden');
+            
+            // 胜利语音
+            setTimeout(() => speak("太棒了，你赢了"), 1000);
+        }
+
+        function resetGame() {
+            score = 0;
+            scoreEl.textContent = score;
+            updateProgress();
+            victoryOverlay.classList.add('hidden');
+            startOverlay.classList.add('hidden'); // 确保开始界面也隐藏
+            isGameActive = true;
+            generateChar();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!isGameActive) return;
+            const key = e.key.toUpperCase();
+            if (key.length > 1) return;
+
+            if (key === currentChar) {
+                score++;
+                scoreEl.textContent = score;
+                updateProgress();
+                createParticles();
+                
+                if (score >= TARGET_SCORE) {
+                    winGame();
+                } else {
+                    // 普通正确
+                    playTone(523.25);
+                    setTimeout(() => playTone(659.25), 100);
+                    setTimeout(generateChar, 400);
+                }
+            } else {
+                if (/[A-Z0-9]/.test(key)) {
+                    speak(key);
+                    playTone(200, 0.3, 'triangle'); 
+                }
+            }
+        });
+
+        // 初始开始按钮
+        document.getElementById('start-btn').addEventListener('click', () => {
+            initAudio();
+            startOverlay.style.opacity = 0;
+            setTimeout(() => {
+                startOverlay.classList.add('hidden');
+                isGameActive = true;
+                generateChar();
+            }, 500);
+        });
+
+        // 再玩一次按钮
+        document.getElementById('replay-btn').addEventListener('click', () => {
+            resetGame();
+        });
+
+        // 初始化语音
+        if (window.speechSynthesis) {
+             voices = window.speechSynthesis.getVoices();
+        }
+
+    </script>
+</body>
+</html>
