@@ -2,398 +2,660 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>宝宝快乐打字 (通关版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>宝宝快乐打字 (梦幻乐园版)</title>
     <style>
+        /* --- 核心配色与字体 --- */
+        :root {
+            --primary: #ff8fa3;
+            --secondary: #4ecdc4;
+            --accent: #ffb142;
+            --text: #596275;
+            --glass: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.5);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        @font-face {
+            font-family: 'Round';
+            src: local('Comic Sans MS'), local('Arial Rounded MT Bold');
+        }
+
         body {
             margin: 0;
             padding: 0;
             height: 100vh;
+            width: 100vw;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background-color: #f0f8ff;
-            font-family: "Comic Sans MS", "YouYuan", cursive, sans-serif;
+            /* 动态渐变背景 */
+            background: linear-gradient(-45deg, #ff9a9e, #fad0c4, #a18cd1, #fbc2eb);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            font-family: 'Round', "YouYuan", sans-serif;
             overflow: hidden;
             user-select: none;
+            touch-action: none;
         }
 
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* --- 游戏区域 --- */
         #game-container {
-            text-align: center;
-            position: relative;
-            z-index: 1;
-            transition: opacity 0.3s;
-        }
-
-        #display-char {
-            font-size: 25vw;
-            font-weight: bold;
-            color: #ff6b6b;
-            text-shadow: 5px 5px 0px rgba(0,0,0,0.1);
-            transition: all 0.2s;
-            cursor: default;
-            line-height: 1;
-        }
-
-        .bounce {
-            animation: bounce-anim 0.5s;
-        }
-
-        @keyframes bounce-anim {
-            0% { transform: scale(0.8); }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); }
-        }
-
-        #hint {
-            font-size: 2rem;
-            color: #666;
-            margin-top: 20px;
-        }
-
-        /* 顶部进度条 */
-        #progress-container {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            height: 10px;
-            background: #eee;
+            height: 100%;
+            z-index: 1;
+            perspective: 1000px; /* 增加3D透视感 */
         }
+
+        /* 字母卡片样式 */
+        .char-card {
+            width: 180px;
+            height: 180px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 40px;
+            box-shadow: 
+                inset 0 0 0 2px rgba(255,255,255,1),
+                0 15px 35px rgba(0,0,0,0.1),
+                0 5px 15px rgba(0,0,0,0.05);
+            color: var(--primary);
+            font-size: 8rem;
+            font-weight: 900;
+            cursor: default;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: absolute; /* 为了能够移动 */
+            /* 默认居中 */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            -webkit-font-smoothing: antialiased;
+            text-shadow: 2px 2px 0px rgba(255,255,255,1), 4px 4px 0px rgba(0,0,0,0.05);
+        }
+
+        /* 浮动动画 */
+        .float-anim {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { margin-top: 0px; }
+            50% { margin-top: -20px; }
+        }
+
+        /* 弹跳动画 (生成时) */
+        .pop-in {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0) rotate(-15deg); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        /* 动态模式下不需要居中的transform，由JS控制left/top */
+        .mode-dynamic .char-card {
+            transform: scale(1); /* 重置transform */
+            animation: none; /* 动态模式不需要浮动，或者需要不同的动画 */
+            width: 120px; /* 稍微小一点 */
+            height: 120px;
+            font-size: 5rem;
+            border-radius: 50%; /* 变成圆形泡泡 */
+        }
+        
+        .mode-dynamic .pop-in {
+             animation: popInDynamic 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popInDynamic {
+             from { transform: scale(0); opacity: 0; }
+             to { transform: scale(1); opacity: 1; }
+        }
+
+        /* --- 顶部进度条 UI --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 50;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none; /* 让点击穿透到底下 */
+        }
+
+        .score-pill {
+            background: white;
+            padding: 10px 25px;
+            border-radius: 50px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .progress-track {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.3);
+        }
+        
         #progress-bar {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
-            transition: width 0.3s;
+            background: linear-gradient(90deg, #ff9a9e, #fad0c4);
+            box-shadow: 0 0 10px rgba(255, 154, 158, 0.5);
+            border-radius: 0 4px 4px 0;
+            transition: width 0.4s ease;
         }
 
-        /* 启动 & 胜利 遮罩层 */
+        /* --- 遮罩层 (菜单/胜利) --- */
         .overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px); /* 强力毛玻璃 */
+            -webkit-backdrop-filter: blur(20px);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 100;
-            transition: opacity 0.5s;
+            transition: all 0.4s;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
-        .btn {
-            padding: 15px 50px;
-            font-size: 2.5rem;
-            background-color: #ff6b6b;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            box-shadow: 0 8px 0 #e05656;
-            cursor: pointer;
-            margin-top: 20px;
-            font-family: inherit;
+        .modal-card {
+            background: var(--glass);
+            border: 2px solid white;
+            border-radius: 40px;
+            padding: 40px;
+            box-shadow: var(--shadow);
+            max-width: 650px;
+            width: 90%;
+            text-align: center;
+            animation: slideUp 0.5s ease;
         }
-        
-        .btn:active {
-            transform: translateY(4px);
-            box-shadow: 0 4px 0 #e05656;
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
 
         .modal-title {
-            font-size: 4rem;
-            color: #ff9f43;
+            font-size: 3rem;
+            background: linear-gradient(45deg, #ff9a9e, #a18cd1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             margin-bottom: 20px;
-            text-shadow: 2px 2px 0 #fff;
+            font-weight: 900;
+            letter-spacing: 2px;
         }
 
-        .modal-subtitle {
-            font-size: 1.5rem;
-            color: #666;
+        /* --- 设置面板 --- */
+        .settings-row {
+            margin-bottom: 25px;
+            text-align: left;
         }
+
+        .settings-label {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 10px;
+            display: block;
+            font-weight: bold;
+            opacity: 0.7;
+            margin-left: 5px;
+        }
+
+        .toggle-group {
+            display: flex;
+            background: rgba(255,255,255,0.5);
+            padding: 5px;
+            border-radius: 20px;
+            gap: 5px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 12px 0;
+            border: none;
+            background: transparent;
+            border-radius: 15px;
+            color: var(--text);
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .toggle-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        /* 模式按钮 */
+        .mode-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .mode-card {
+            background: white;
+            border: none;
+            border-radius: 25px;
+            padding: 20px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            font-family: inherit;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 5px;
+            background: #eee;
+        }
+        .mode-static::before { background: #4ecdc4; }
+        .mode-mole::before { background: #ff6b6b; }
+        .mode-fall::before { background: #45b7d1; }
+
+        .mode-card:hover { transform: translateY(-5px); }
+        .mode-card:active { transform: scale(0.95); }
+
+        .mode-icon { font-size: 2.5rem; }
+        .mode-name { color: var(--text); font-weight: bold; font-size: 1.1rem; }
+
+        /* 胜利按钮 */
+        .btn-large {
+            background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            border-radius: 50px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            box-shadow: 0 10px 20px rgba(255, 154, 158, 0.4);
+            transition: transform 0.2s;
+            margin-top: 20px;
+        }
+        .btn-large:active { transform: scale(0.95); }
 
         /* 隐藏类 */
-        .hidden {
-            display: none !important;
-        }
+        .hidden { opacity: 0; pointer-events: none; }
 
-        /* 粒子效果 */
-        .emoji-particle {
+        /* 粒子特效 */
+        .particle {
             position: absolute;
-            font-size: 3rem;
             pointer-events: none;
-            animation: floatUp 1s ease-out forwards;
-            z-index: 10;
+            animation: burst 0.8s ease-out forwards;
+            z-index: 20;
+        }
+        @keyframes burst {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
         }
 
-        @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-150px) scale(1.5); opacity: 0; }
-        }
-
-        /* 胜利时的彩带 */
-        .confetti {
+        /* 提示文字 */
+        #hint-text {
             position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: #f00;
-            animation: fall linear forwards;
-            z-index: 50;
-        }
-
-        @keyframes fall {
-            to { transform: translateY(100vh) rotate(720deg); }
-        }
-
-        #score-board {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            font-size: 2rem;
-            color: #ff9f43;
-            font-weight: bold;
-        }
-        
-        #target-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 1.5rem;
-            color: #888;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 40;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="progress-container"><div id="progress-bar"></div></div>
+    <div id="ui-layer">
+        <div class="score-pill">
+            <span style="font-size: 1.2rem;">⭐</span> 
+            <span id="score">0</span>
+            <span style="font-size: 0.8rem; color: #ccc; margin-left:5px;">/ <span id="target-score-display">10</span></span>
+        </div>
+    </div>
+    <div class="progress-track"><div id="progress-bar"></div></div>
+
+    <div id="game-container">
+        <div id="char-card" class="char-card float-anim">A</div>
+    </div>
+
+    <div id="hint-text">点击屏幕或按键开始</div>
 
     <div id="start-overlay" class="overlay">
-        <div class="modal-title">宝宝打字 👶</div>
-        <div class="modal-subtitle">集齐 10 颗星星就胜利啦！</div>
-        <button id="start-btn" class="btn">▶ 点击开始</button>
+        <div class="modal-card">
+            <div class="modal-title">全能打字王</div>
+            
+            <div class="settings-row">
+                <span class="settings-label">🎯 学习内容</span>
+                <div class="toggle-group" id="diff-group">
+                    <button class="toggle-btn" onclick="setDiff('numbers')">123 数字</button>
+                    <button class="toggle-btn active" onclick="setDiff('letters')">ABC 字母</button>
+                    <button class="toggle-btn" onclick="setDiff('mixed')">混合</button>
+                </div>
+            </div>
+
+            <div class="settings-row">
+                <span class="settings-label">🚀 游戏速度</span>
+                <div class="toggle-group" id="speed-group">
+                    <button class="toggle-btn" onclick="setSpeed('slow')">🐢 慢速</button>
+                    <button class="toggle-btn active" onclick="setSpeed('normal')">🐇 正常</button>
+                    <button class="toggle-btn" onclick="setSpeed('fast')">⚡ 极速</button>
+                </div>
+            </div>
+
+            <div style="text-align: left; margin-top: 30px;">
+                <span class="settings-label" style="margin-bottom: 15px;">🎮 选择模式开始</span>
+                <div class="mode-container">
+                    <button class="mode-card mode-static" onclick="startGame('static')">
+                        <span class="mode-icon">🧘</span>
+                        <span class="mode-name">练习</span>
+                    </button>
+                    <button class="mode-card mode-mole" onclick="startGame('mole')">
+                        <span class="mode-icon">🐹</span>
+                        <span class="mode-name">打地鼠</span>
+                    </button>
+                    <button class="mode-card mode-fall" onclick="startGame('fall')">
+                        <span class="mode-icon">🌧️</span>
+                        <span class="mode-name">流星雨</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="victory-overlay" class="overlay hidden">
-        <div style="font-size: 6rem;">🏆</div>
-        <div class="modal-title">太棒了！</div>
-        <div class="modal-subtitle">你完成了所有挑战</div>
-        <button id="replay-btn" class="btn">🔄 再玩一次</button>
-    </div>
-
-    <div id="score-board">⭐ <span id="score">0</span></div>
-    <div id="target-info">目标: 10</div>
-
-    <div id="game-container">
-        <div id="display-char">?</div>
-        <div id="hint">按键盘上的按键</div>
+        <div class="modal-card" style="padding: 60px 40px;">
+            <div style="font-size: 8rem; margin-bottom: 20px; animation: bounce 1s infinite;">🏆</div>
+            <div class="modal-title">太棒了！</div>
+            <p style="color: var(--text); font-size: 1.2rem; margin-bottom: 30px;">宝宝真聪明，完成了挑战！</p>
+            <button class="btn-large" onclick="resetMenu()">再玩一次</button>
+        </div>
     </div>
 
     <script>
-        const displayChar = document.getElementById('display-char');
-        const scoreEl = document.getElementById('score');
-        const startOverlay = document.getElementById('start-overlay');
-        const victoryOverlay = document.getElementById('victory-overlay');
-        const gameContainer = document.getElementById('game-container');
-        const progressBar = document.getElementById('progress-bar');
-        
-        let currentChar = '';
-        let score = 0;
-        const TARGET_SCORE = 10; // 设置目标分数为10分
-        let isGameActive = false;
-        
-        const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#ff9f43', '#a55eea', '#fd9644', '#20bf6b'];
-        const emojis = ['🎈', '🌟', '🦄', '🍭', '🍦', '🐶', '🐱', '🎉', '💖'];
+        // --- 核心配置 ---
+        const config = {
+            numbers: "0123456789",
+            letters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            mixed: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            colors: ['#ff9a9e', '#a18cd1', '#fad0c4', '#ffb142', '#4ecdc4', '#ff6b6b'],
+            speed: {
+                slow: { mole: 4000, fall: 0.8 },
+                normal: { mole: 2500, fall: 2.0 },
+                fast: { mole: 1200, fall: 4.5 }
+            }
+        };
 
-        // --- 音频系统 ---
+        let state = {
+            diff: 'letters',
+            speed: 'normal',
+            mode: 'static',
+            score: 0,
+            target: 10,
+            char: 'A',
+            active: false,
+            fallY: 0
+        };
+
+        let timers = { mole: null, fall: null };
+
+        // --- DOM ---
+        const els = {
+            card: document.getElementById('char-card'),
+            container: document.getElementById('game-container'),
+            score: document.getElementById('score'),
+            bar: document.getElementById('progress-bar'),
+            menu: document.getElementById('start-overlay'),
+            victory: document.getElementById('victory-overlay'),
+            targetInfo: document.getElementById('target-score-display'),
+            hint: document.getElementById('hint-text')
+        };
+
+        // --- 逻辑: 设置 ---
+        function setDiff(val) {
+            state.diff = val;
+            updateToggle('diff-group', val);
+        }
+        function setSpeed(val) {
+            state.speed = val;
+            updateToggle('speed-group', val);
+        }
+        function updateToggle(id, val) {
+            const btns = document.getElementById(id).children;
+            for(let btn of btns) {
+                if(btn.onclick.toString().includes(val)) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+        }
+
+        // --- 逻辑: 游戏循环 ---
+        function clearGame() {
+            if(timers.mole) clearInterval(timers.mole);
+            if(timers.fall) cancelAnimationFrame(timers.fall);
+            // 重置卡片样式
+            els.card.style = ''; 
+            els.card.className = 'char-card'; // 重置类名
+        }
+
+        function spawn() {
+            clearGame();
+
+            // 1. 内容
+            const pool = config[state.diff];
+            state.char = pool.charAt(Math.floor(Math.random() * pool.length));
+            els.card.textContent = state.char;
+            els.card.style.color = config.colors[Math.floor(Math.random() * config.colors.length)];
+
+            // 2. 模式行为
+            const spd = config.speed[state.speed];
+            
+            if (state.mode === 'static') {
+                els.card.classList.add('float-anim', 'pop-in');
+            } 
+            else if (state.mode === 'mole') {
+                els.container.classList.add('mode-dynamic');
+                moveRandom();
+                els.card.classList.add('pop-in');
+                timers.mole = setInterval(() => {
+                    moveRandom();
+                    playTone(300, 0.1, 'triangle');
+                    els.card.classList.remove('pop-in');
+                    void els.card.offsetWidth;
+                    els.card.classList.add('pop-in');
+                }, spd.mole);
+            }
+            else if (state.mode === 'fall') {
+                els.container.classList.add('mode-dynamic');
+                els.card.style.left = (Math.random() * (window.innerWidth - 120)) + 60 + 'px';
+                state.fallY = -150;
+                
+                const loop = () => {
+                    if(!state.active) return;
+                    state.fallY += spd.fall;
+                    if(state.fallY > window.innerHeight) {
+                        playTone(150, 0.2, 'sawtooth');
+                        shakeScreen();
+                        spawn();
+                    } else {
+                        els.card.style.top = state.fallY + 'px';
+                        timers.fall = requestAnimationFrame(loop);
+                    }
+                };
+                loop();
+            }
+            
+            speak(state.char);
+        }
+
+        function moveRandom() {
+            const x = Math.random() * (window.innerWidth - 200) + 100;
+            const y = Math.random() * (window.innerHeight - 250) + 100;
+            els.card.style.left = x + 'px';
+            els.card.style.top = y + 'px';
+        }
+
+        function check(key) {
+            if(key === state.char) {
+                // 正确
+                state.score++;
+                els.score.textContent = state.score;
+                els.bar.style.width = (state.score / state.target * 100) + '%';
+                
+                burstParticles(els.card);
+                playTone(523 + (state.score * 30)); 
+
+                if(state.score >= state.target) win();
+                else setTimeout(spawn, 300);
+            } else {
+                // 错误
+                if(/[A-Z0-9]/.test(key)) {
+                    speak(key);
+                    playTone(200, 0.2, 'sawtooth');
+                    els.card.style.transform += " translateX(10px)";
+                    setTimeout(()=> {
+                         if(state.mode === 'static') els.card.style.transform = "translate(-50%, -50%)";
+                         else els.card.style.transform = "scale(1)";
+                    }, 100);
+                }
+            }
+        }
+
+        // --- 视觉特效 ---
+        function burstParticles(target) {
+            const rect = target.getBoundingClientRect();
+            const center = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+            
+            for(let i=0; i<12; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.textContent = ['★', '●', '▲', '❤️', '✨'][Math.floor(Math.random()*5)];
+                p.style.color = config.colors[Math.floor(Math.random()*config.colors.length)];
+                p.style.left = center.x + 'px';
+                p.style.top = center.y + 'px';
+                p.style.fontSize = (Math.random()*20 + 20) + 'px';
+                
+                const angle = (Math.PI * 2 * i) / 12;
+                const dist = 100 + Math.random() * 50;
+                p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+                p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+                
+                document.body.appendChild(p);
+                setTimeout(() => p.remove(), 800);
+            }
+        }
+
+        function shakeScreen() {
+            document.body.style.transform = "translate(5px, 5px)";
+            setTimeout(() => document.body.style.transform = "translate(0,0)", 100);
+        }
+
+        // --- 流程控制 ---
+        function startGame(mode) {
+            initAudio();
+            state.mode = mode;
+            state.score = 0;
+            state.active = true;
+            els.score.textContent = 0;
+            els.bar.style.width = '0%';
+            els.targetInfo.textContent = state.target;
+            els.hint.textContent = mode === 'static' ? "找到键盘上一样的按键" : (mode === 'mole' ? "抓住泡泡！" : "别让星星掉下来！");
+            
+            els.menu.classList.add('hidden');
+            spawn();
+        }
+
+        function win() {
+            state.active = false;
+            clearGame();
+            playVictoryMusic();
+            els.victory.classList.remove('hidden');
+        }
+
+        function resetMenu() {
+            els.victory.classList.add('hidden');
+            els.menu.classList.remove('hidden');
+        }
+
+        // --- 音频/TTS (保持不变) ---
         let audioCtx;
         function initAudio() {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (AudioContext) audioCtx = new AudioContext();
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC && !audioCtx) audioCtx = new AC();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         }
-
-        function playTone(freq, duration = 0.5, type = 'sine') {
-            if (!audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            osc.start();
-            osc.stop(audioCtx.currentTime + duration);
+        function playTone(f, d=0.5, t='sine') {
+            if(!audioCtx) return;
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f;
+            g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
         }
-
         function playVictoryMusic() {
-            // 播放一段胜利号角: C - E - G - High C
-            const now = audioCtx.currentTime;
-            const playNote = (f, t) => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.frequency.value = f;
-                osc.type = 'triangle'; // 用三角波，听起来更像号角
-                gain.gain.setValueAtTime(0.2, now + t);
-                gain.gain.linearRampToValueAtTime(0, now + t + 0.4);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(now + t);
-                osc.stop(now + t + 0.4);
-            };
-            
-            playNote(523.25, 0);   // Do
-            playNote(659.25, 0.2); // Mi
-            playNote(783.99, 0.4); // So
-            
-            // 最后一声长音 High Do
-            setTimeout(() => {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.frequency.value = 1046.50;
-                osc.type = 'square'; // 方波更响亮
-                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 1.5);
-            }, 600);
+            if(!audioCtx) return;
+            [523, 659, 783, 1046, 1318, 1568].forEach((f, i) => setTimeout(() => playTone(f, 0.4, 'triangle'), i * 120));
         }
-
-        // --- TTS 语音 ---
         const synth = window.speechSynthesis;
         let voices = [];
-        if (speechSynthesis.onvoiceschanged !== undefined) {
-            speechSynthesis.onvoiceschanged = () => voices = synth.getVoices();
-        }
-
-        function speak(text) {
+        if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = () => voices = synth.getVoices();
+        function speak(txt) {
             synth.cancel();
-            const utterThis = new SpeechSynthesisUtterance(text);
-            const zhVoice = voices.find(v => v.lang.includes('zh'));
-            if (zhVoice) utterThis.voice = zhVoice;
-            utterThis.pitch = 1.2;
-            utterThis.rate = 0.8;
-            synth.speak(utterThis);
+            const u = new SpeechSynthesisUtterance(txt);
+            const v = voices.find(v => v.lang.includes('zh'));
+            if(v) u.voice = v;
+            u.rate = 1;
+            synth.speak(u);
         }
 
-        // --- 游戏逻辑 ---
-
-        function updateProgress() {
-            const percent = (score / TARGET_SCORE) * 100;
-            progressBar.style.width = percent + '%';
-        }
-
-        function generateChar() {
-            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            const randomChar = chars.charAt(Math.floor(Math.random() * chars.length));
-            currentChar = randomChar;
-            displayChar.textContent = randomChar;
-            displayChar.style.color = colors[Math.floor(Math.random() * colors.length)];
-            
-            displayChar.classList.remove('bounce');
-            void displayChar.offsetWidth; 
-            displayChar.classList.add('bounce');
-
-            speak(randomChar);
-        }
-
-        function createParticles() {
-            const rect = displayChar.getBoundingClientRect();
-            const particle = document.createElement('div');
-            particle.classList.add('emoji-particle');
-            particle.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-            const randomX = (Math.random() - 0.5) * 150;
-            particle.style.left = (rect.left + rect.width / 2 + randomX - 20) + 'px';
-            particle.style.top = (rect.top + 50) + 'px';
-            document.body.appendChild(particle);
-            setTimeout(() => particle.remove(), 1000);
-        }
-
-        function startConfetti() {
-            for(let i=0; i<50; i++) {
-                const confetti = document.createElement('div');
-                confetti.classList.add('confetti');
-                confetti.style.left = Math.random() * 100 + 'vw';
-                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
-                confetti.style.opacity = Math.random();
-                document.body.appendChild(confetti);
-                
-                setTimeout(() => confetti.remove(), 4000);
-            }
-        }
-
-        function winGame() {
-            isGameActive = false;
-            playVictoryMusic();
-            startConfetti();
-            victoryOverlay.classList.remove('hidden');
-            
-            // 胜利语音
-            setTimeout(() => speak("太棒了，你赢了"), 1000);
-        }
-
-        function resetGame() {
-            score = 0;
-            scoreEl.textContent = score;
-            updateProgress();
-            victoryOverlay.classList.add('hidden');
-            startOverlay.classList.add('hidden'); // 确保开始界面也隐藏
-            isGameActive = true;
-            generateChar();
-        }
-
-        document.addEventListener('keydown', (e) => {
-            if (!isGameActive) return;
-            const key = e.key.toUpperCase();
-            if (key.length > 1) return;
-
-            if (key === currentChar) {
-                score++;
-                scoreEl.textContent = score;
-                updateProgress();
-                createParticles();
-                
-                if (score >= TARGET_SCORE) {
-                    winGame();
-                } else {
-                    // 普通正确
-                    playTone(523.25);
-                    setTimeout(() => playTone(659.25), 100);
-                    setTimeout(generateChar, 400);
-                }
-            } else {
-                if (/[A-Z0-9]/.test(key)) {
-                    speak(key);
-                    playTone(200, 0.3, 'triangle'); 
-                }
-            }
+        document.addEventListener('keydown', e => {
+            if(!state.active) return;
+            if(e.key.length === 1) check(e.key.toUpperCase());
         });
-
-        // 初始开始按钮
-        document.getElementById('start-btn').addEventListener('click', () => {
-            initAudio();
-            startOverlay.style.opacity = 0;
-            setTimeout(() => {
-                startOverlay.classList.add('hidden');
-                isGameActive = true;
-                generateChar();
-            }, 500);
-        });
-
-        // 再玩一次按钮
-        document.getElementById('replay-btn').addEventListener('click', () => {
-            resetGame();
-        });
-
-        // 初始化语音
-        if (window.speechSynthesis) {
-             voices = window.speechSynthesis.getVoices();
-        }
 
     </script>
 </body>
