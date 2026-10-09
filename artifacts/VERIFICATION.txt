@@ -1,0 +1,24 @@
+Changed fields: config.pinyin (21 entries), state.diff=pinyin, state.typed/item/answered, timers.next; check() sequential input and answer lock; keydown repeat/IME guard.
+Working file: C:\Users\1\Desktop\dazi\index.html
+MODIFIED_FILE: C:\Users\1\Desktop\dazi\artifacts\MODIFIED_FILE.html
+DIFF_FILE: C:\Users\1\Desktop\dazi\artifacts\DIFF_FILE.patch
+VERIFICATION: C:\Users\1\Desktop\dazi\artifacts\VERIFICATION.txt
+ROLLBACK: C:\Users\1\Desktop\dazi\artifacts\ROLLBACK.sh
+Original SHA256: 1E29C0BCEBC9ACA1F9E71E12244A7F92A3B6E7F0F07ABF7360747157BE2ABF0B
+BASELINE command: node artifacts/test.cjs artifacts/index.original.html
+Input: original HTML; duplicate A answer.
+Output: BASELINE: pinyin=false; repeated-answer score=2; PASS
+Exit: 0
+MODIFIED command: node artifacts/test.cjs index.html
+Input: modified HTML; three modes; XIAO with wrong key and backspace; LV; repeat/IME events; three legacy pools.
+Output: MODIFIED: pinyin=21; modes=3 PASS; sequential/wrong/backspace/umlaut/repeat/IME PASS; legacy=3 PASS; repeated-answer score=1; PASS
+Exit: 0
+ROLLBACK command: "C:\Program Files\Git\bin\bash.exe" -c "chmod +x artifacts/ROLLBACK.sh; ./artifacts/ROLLBACK.sh artifacts/rollback-test.html"
+Input: separate copy of modified HTML (rollback-test.html).
+Output: ROLLBACK: original bytes restored; PASS
+Exit: 0
+Restored behavior command: node artifacts/test.cjs artifacts/rollback-test.html
+Output: BASELINE: pinyin=false; repeated-answer score=2; PASS
+Exit: 0
+Restored SHA256 matches original. Working index.html and MODIFIED_FILE.html remain modified.
+Tests use Node VM with DOM/timer/speech mocks; browser rendering and actual speech not tested.

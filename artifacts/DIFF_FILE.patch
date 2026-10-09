@@ -1,0 +1,209 @@
+diff --git a/index.html b/index.html
+index 4921a81..a12a93c 100644
+--- a/index.html
++++ b/index.html
+@@ -318,6 +318,18 @@
+         }
+         .btn-large:active { transform: scale(0.95); }
+ 
++        /* 拼音题卡：声调用于展示，输入使用普通字母 */
++        .char-card.pinyin-card { flex-direction: column; gap: 8px; font-size: 3.8rem; }
++        .pinyin-word { font-size: 2.6rem; line-height: 1.1; }
++        .pinyin-label { font-size: 1.7rem; line-height: 1.2; letter-spacing: 2px; }
++        .pinyin-input { font-size: 1rem; color: #596275; letter-spacing: 3px; }
++        .mode-dynamic .pinyin-card { width: 160px; height: 160px; border-radius: 30px; }
++        .mode-dynamic .pinyin-word { font-size: 2rem; }
++        .mode-dynamic .pinyin-label { font-size: 1.4rem; }
++        @media (max-width: 480px) {
++            .modal-card { padding: 20px; box-sizing: border-box; }
++            .toggle-btn { font-size: 12px; }
++        }
+         /* 隐藏类 */
+         .hidden { opacity: 0; pointer-events: none; }
+ 
+@@ -374,6 +386,7 @@
+                     <button class="toggle-btn" onclick="setDiff('numbers')">123 数字</button>
+                     <button class="toggle-btn active" onclick="setDiff('letters')">ABC 字母</button>
+                     <button class="toggle-btn" onclick="setDiff('mixed')">混合</button>
++                    <button class="toggle-btn" onclick="setDiff('pinyin')">拼音</button>
+                 </div>
+             </div>
+ 
+@@ -421,6 +434,29 @@
+             numbers: "0123456789",
+             letters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+             mixed: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
++            pinyin: [
++                { word: '妈', label: 'mā', keys: 'MA' },
++                { word: '爸', label: 'bà', keys: 'BA' },
++                { word: '米', label: 'mǐ', keys: 'MI' },
++                { word: '大', label: 'dà', keys: 'DA' },
++                { word: '小', label: 'xiǎo', keys: 'XIAO' },
++                { word: '山', label: 'shān', keys: 'SHAN' },
++                { word: '水', label: 'shuǐ', keys: 'SHUI' },
++                { word: '火', label: 'huǒ', keys: 'HUO' },
++                { word: '木', label: 'mù', keys: 'MU' },
++                { word: '日', label: 'rì', keys: 'RI' },
++                { word: '月', label: 'yuè', keys: 'YUE' },
++                { word: '人', label: 'rén', keys: 'REN' },
++                { word: '口', label: 'kǒu', keys: 'KOU' },
++                { word: '手', label: 'shǒu', keys: 'SHOU' },
++                { word: '牛', label: 'niú', keys: 'NIU' },
++                { word: '马', label: 'mǎ', keys: 'MA' },
++                { word: '猫', label: 'māo', keys: 'MAO' },
++                { word: '狗', label: 'gǒu', keys: 'GOU' },
++                { word: '鸟', label: 'niǎo', keys: 'NIAO' },
++                { word: '鱼', label: 'yú', keys: 'YU' },
++                { word: '绿', label: 'lǜ', keys: 'LV' }
++            ],
+             colors: ['#ff9a9e', '#a18cd1', '#fad0c4', '#ffb142', '#4ecdc4', '#ff6b6b'],
+             speed: {
+                 slow: { mole: 4000, fall: 0.8 },
+@@ -437,10 +473,13 @@
+             target: 10,
+             char: 'A',
+             active: false,
+-            fallY: 0
++            fallY: 0,
++            typed: '',
++            item: null,
++            answered: false
+         };
+ 
+-        let timers = { mole: null, fall: null };
++        let timers = { mole: null, fall: null, next: null };
+ 
+         // --- DOM ---
+         const els = {
+@@ -475,6 +514,8 @@
+         function clearGame() {
+             if(timers.mole) clearInterval(timers.mole);
+             if(timers.fall) cancelAnimationFrame(timers.fall);
++            clearTimeout(timers.next);
++            timers.next = null;
+             // 重置卡片样式
+             els.card.style = ''; 
+             els.card.className = 'char-card'; // 重置类名
+@@ -485,8 +526,18 @@
+ 
+             // 1. 内容
+             const pool = config[state.diff];
+-            state.char = pool.charAt(Math.floor(Math.random() * pool.length));
+-            els.card.textContent = state.char;
++            state.typed = '';
++            state.answered = false;
++            if (state.diff === 'pinyin') {
++                state.item = pool[Math.floor(Math.random() * pool.length)];
++                state.char = state.item.keys;
++                els.card.classList.add('pinyin-card');
++                renderPinyin();
++            } else {
++                state.item = null;
++                state.char = pool.charAt(Math.floor(Math.random() * pool.length));
++                els.card.textContent = state.char;
++            }
+             els.card.style.color = config.colors[Math.floor(Math.random() * config.colors.length)];
+ 
+             // 2. 模式行为
+@@ -509,7 +560,7 @@
+             }
+             else if (state.mode === 'fall') {
+                 els.container.classList.add('mode-dynamic');
+-                els.card.style.left = (Math.random() * (window.innerWidth - 120)) + 60 + 'px';
++                els.card.style.left = Math.random() * Math.max(0, window.innerWidth - cardSize()) + 'px';
+                 state.fallY = -150;
+                 
+                 const loop = () => {
+@@ -527,18 +578,53 @@
+                 loop();
+             }
+             
+-            speak(state.char);
++            speak(state.item ? state.item.word : state.char);
+         }
+ 
+         function moveRandom() {
+-            const x = Math.random() * (window.innerWidth - 200) + 100;
+-            const y = Math.random() * (window.innerHeight - 250) + 100;
++            const size = cardSize();
++            const x = Math.random() * Math.max(0, window.innerWidth - size);
++            const top = Math.min(90, Math.max(0, window.innerHeight - size));
++            const y = top + Math.random() * Math.max(0, window.innerHeight - size - top - 50);
+             els.card.style.left = x + 'px';
+             els.card.style.top = y + 'px';
+         }
+ 
++        function cardSize() { return state.diff === 'pinyin' ? 160 : 120; }
++
++        function renderPinyin() {
++            els.card.replaceChildren();
++            const values = [state.item.word, state.item.label,
++                state.typed.toLowerCase() + '＿'.repeat(state.char.length - state.typed.length)];
++            ['pinyin-word', 'pinyin-label', 'pinyin-input'].forEach((className, i) => {
++                const span = document.createElement('span');
++                span.className = className;
++                span.textContent = values[i];
++                els.card.appendChild(span);
++            });
++        }
++
+         function check(key) {
+-            if(key === state.char) {
++            if (!state.active || state.answered) return;
++            if (state.diff === 'pinyin') {
++                if (key === 'Backspace') {
++                    state.typed = state.typed.slice(0, -1);
++                    renderPinyin();
++                    return;
++                }
++                if (!/^[A-Z]$/.test(key)) return;
++                if (key !== state.char[state.typed.length]) {
++                    playTone(200, 0.2, 'sawtooth');
++                    return;
++                }
++                state.typed += key;
++                renderPinyin();
++                if (state.typed !== state.char) return;
++            }
++            if(state.diff === 'pinyin' || key === state.char) {
++                state.answered = true;
++                if(timers.mole) clearInterval(timers.mole);
++                if(timers.fall) cancelAnimationFrame(timers.fall);
+                 // 正确
+                 state.score++;
+                 els.score.textContent = state.score;
+@@ -548,7 +634,7 @@
+                 playTone(523 + (state.score * 30)); 
+ 
+                 if(state.score >= state.target) win();
+-                else setTimeout(spawn, 300);
++                else timers.next = setTimeout(spawn, 300);
+             } else {
+                 // 错误
+                 if(/[A-Z0-9]/.test(key)) {
+@@ -603,6 +689,8 @@
+             els.targetInfo.textContent = state.target;
+             els.hint.textContent = mode === 'static' ? "找到键盘上一样的按键" : (mode === 'mole' ? "抓住泡泡！" : "别让星星掉下来！");
+             
++            if (state.diff === 'pinyin') els.hint.textContent = '依次输入拼音字母，退格可修改；ü 用 v，声调不用输入（请切换英文键盘）';
++            els.container.classList.remove('mode-dynamic');
+             els.menu.classList.add('hidden');
+             spawn();
+         }
+@@ -653,8 +741,14 @@
+         }
+ 
+         document.addEventListener('keydown', e => {
+-            if(!state.active) return;
+-            if(e.key.length === 1) check(e.key.toUpperCase());
++            if(!state.active || e.repeat || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
++            if (state.diff === 'pinyin' && e.key === 'Backspace') {
++                e.preventDefault();
++                check('Backspace');
++            } else if (/^[a-z0-9]$/i.test(e.key)) {
++                e.preventDefault();
++                check(e.key.toUpperCase());
++            }
+         });
+ 
+     </script>
